@@ -121,7 +121,17 @@ static error_t build_command(const Action_t action, uint8_t out_command[14]) {
 
 static void delay_us(uint16_t us) {
     for (uint16_t i = 0; i < us; i++) {
-        for (uint32_t j = 0; j < 100; j++) {
+        for (uint32_t j = 0; j < 1; j++) {
+            asm volatile("nop");
+            asm volatile("nop");
+            asm volatile("nop");
+            asm volatile("nop");
+            asm volatile("nop");
+            asm volatile("nop");
+            asm volatile("nop");
+            asm volatile("nop");
+            asm volatile("nop");
+            asm volatile("nop");
             asm volatile("nop");
         }
     }
