@@ -83,6 +83,7 @@ static error_t build_command(const Action_t action, uint8_t out_command[14]) {
     out_command[0] = 1;
     out_command[1] = 1;
     out_command[2] = toggle_bit;
+    toggle_bit = !toggle_bit;
 
     Address_t address = 0;
     switch (action) {
@@ -137,6 +138,12 @@ static void delay_us(uint16_t us) {
     }
 }
 
+static void delay_ms(uint16_t ms) {
+    for (uint16_t i = 0; i < ms; i++) {
+        delay_us(1000);
+    }
+}
+
 static void send_command(uint8_t command[], size_t command_len, Action_t action) {
     uint8_t bit_stream[50];
     size_t encoded_len = sizeof(bit_stream);
@@ -167,6 +174,7 @@ static void send_command(uint8_t command[], size_t command_len, Action_t action)
     TIM2->CCER &= ~TIM_CC1E;
     TIM2->CCER &= ~TIM_CC2E;
     TIM2->CTLR1 &= ~TIM_CEN;
+    delay_us(5000);
 }
 static void init_timer(void) {
     RCC->APB1PCENR |=  RCC_APB1Periph_TIM2;
@@ -186,7 +194,7 @@ static void init_timer(void) {
     TIM2->CTLR2 = 0;
 
     // SMCFGR: default clk input is 48MHz CK_INT
-    uint32_t frequency = 48 * 1000;
+    uint32_t frequency = 38 * 1000;
     uint32_t resolution = (1 << 16) - 1;
     uint16_t prescaler = 0;
     uint16_t reload_value = 0;
@@ -243,6 +251,10 @@ static void program_button_press_handler(void) {
 
 int main(void) {
     SystemInit();
+    funGpioInitD();
+    funPinMode(PD6, GPIO_Speed_10MHz | GPIO_CNF_OUT_PP);
+    funDigitalWrite(PD6, 1);
+
 
     // funGpioInitD();
     // funPinMode(PD4, GPIO_Speed_10MHz | GPIO_CNF_OUT_PP);
