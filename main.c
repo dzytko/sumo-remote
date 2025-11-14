@@ -145,28 +145,28 @@ static void send_command(uint8_t command[], size_t command_len, Action_t action)
     switch (action) {
         case ACTION_START:
         case ACTION_STOP:
-            TIM1->CCER |= TIM_CC2E;
-            TIM1->CCER &= ~TIM_CC1E;
+            TIM2->CCER |= TIM_CC1E;
+            TIM2->CCER &= ~TIM_CC2E;
             break;
         case ACTION_PROGRAM:
         default:
-            TIM1->CCER |= TIM_CC1E;
-            TIM1->CCER &= ~TIM_CC2E;
+            TIM2->CCER |= TIM_CC2E;
+            TIM2->CCER &= ~TIM_CC1E;
             break;
     }
 
     for (uint8_t i = 0; i < (uint8_t)encoded_len; i++) {
         if (bit_stream[i]) {
-            TIM1->CTLR1 |= TIM_CEN;
+            TIM2->CTLR1 |= TIM_CEN;
         }
         else {
-            TIM1->CTLR1 &= ~TIM_CEN;
+            TIM2->CTLR1 &= ~TIM_CEN;
         }
         delay_us(889);
     }
-    TIM1->CCER &= ~TIM_CC1E;
-    TIM1->CCER &= ~TIM_CC2E;
-    TIM1->CTLR1 &= ~TIM_CEN;
+    TIM2->CCER &= ~TIM_CC1E;
+    TIM2->CCER &= ~TIM_CC2E;
+    TIM2->CTLR1 &= ~TIM_CEN;
 }
 static void init_timer(void) {
     RCC->APB1PCENR |=  RCC_APB1Periph_TIM2;
@@ -180,7 +180,7 @@ static void init_timer(void) {
     RCC->APB1PRSTR &= ~RCC_APB1Periph_TIM2;
 
     // CTLR1: default is up, events generated, edge align
-    TIM2->CTLR1 = 0;
+    TIM2->CTLR1 = TIM_ARPE;
 
     // CTLR2: set output idle states (MOE off) via OIS1 and OIS1N bits
     TIM2->CTLR2 = 0;
@@ -195,26 +195,28 @@ static void init_timer(void) {
     TIM2->PSC = prescaler;
     TIM2->ATRLR = reload_value - 1;
 
+    TIM2->SWEVGR |= TIM_UG;
+
     // CH1 Mode is output, PWM1 (CC1S = 00, OC1M = 110)
-    TIM1->CHCTLR1 |= TIM_OC1M_2 | TIM_OC1M_1;
-    TIM1->CHCTLR1 |= TIM_OC2M_2 | TIM_OC2M_1;
+    TIM2->CHCTLR1 |= TIM_OC1M_2 | TIM_OC1M_1 | TIM_OC1PE;
+    TIM2->CHCTLR1 |= TIM_OC2M_2 | TIM_OC2M_1 | TIM_OC2PE;
 
-    TIM1->CH1CVR = reload_value / 2;
-    TIM1->CH2CVR = reload_value / 2;
+    TIM2->CH1CVR = reload_value / 2;
+    TIM2->CH2CVR = reload_value / 2;
 
-    TIM1->BDTR |= TIM_MOE;
+    TIM2->BDTR |= TIM_MOE;
 }
 
 static void init_gpio(void) {
     funGpioInitC();
-    funPinMode(PC0, GPIO_Speed_10MHz | GPIO_CNF_IN_PUPD);
-    funPinMode(PC1, GPIO_Speed_10MHz | GPIO_CNF_IN_PUPD);
-    funPinMode(PC2, GPIO_Speed_10MHz | GPIO_CNF_IN_PUPD);
-    funPinMode(PC3, GPIO_Speed_10MHz | GPIO_CNF_IN_PUPD);
-    funPinMode(PC4, GPIO_Speed_10MHz | GPIO_CNF_IN_PUPD);
-    funPinMode(PC5, GPIO_Speed_10MHz | GPIO_CNF_IN_PUPD);
-    funPinMode(PC6, GPIO_Speed_10MHz | GPIO_CNF_IN_PUPD);
-    funPinMode(PC7, GPIO_Speed_10MHz | GPIO_CNF_IN_PUPD);
+    funPinMode(PC0, GPIO_CNF_IN_PUPD);
+    funPinMode(PC1, GPIO_CNF_IN_PUPD);
+    funPinMode(PC2, GPIO_CNF_IN_PUPD);
+    funPinMode(PC3, GPIO_CNF_IN_PUPD);
+    funPinMode(PC4, GPIO_CNF_IN_PUPD);
+    funPinMode(PC5, GPIO_CNF_IN_PUPD);
+    funPinMode(PC6, GPIO_CNF_IN_PUPD);
+    funPinMode(PC7, GPIO_CNF_IN_PUPD);
     GPIOC->OUTDR |= 0xff;
 }
 
@@ -241,18 +243,29 @@ static void program_button_press_handler(void) {
 
 int main(void) {
     SystemInit();
+
+    // funGpioInitD();
+    // funPinMode(PD4, GPIO_Speed_10MHz | GPIO_CNF_OUT_PP);
+    //
+    // while (1) {
+    //     funDigitalWrite(PD4, 1);
+    //     delay_us(889);
+    //     funDigitalWrite(PD4, 0);
+    //     delay_us(889);
+    // }
+
     init_gpio();
     init_timer();
 
     // ReSharper disable once CppDFAEndlessLoop
     while (1) {
-        if (funDigitalRead(PC5)) {
+        if (!funDigitalRead(PC5)) {
             start_button_press_handler();
         }
-        if (funDigitalRead(PC6)) {
+        if (!funDigitalRead(PC6)) {
             stop_button_press_handler();
         }
-        if (funDigitalRead(PC7)) {
+        if (!funDigitalRead(PC7)) {
             program_button_press_handler();
         }
     }
