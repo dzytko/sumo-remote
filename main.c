@@ -15,7 +15,7 @@ typedef enum Action {
 } Action_t;
 
 
-static uint8_t toggle_bit = 0;
+static uint8_t toggle_bit = 1;
 
 
 static void calc_presc_reload(
@@ -83,7 +83,7 @@ static error_t build_command(const Action_t action, uint8_t out_command[14]) {
     out_command[0] = 1;
     out_command[1] = 1;
     out_command[2] = toggle_bit;
-    toggle_bit = !toggle_bit;
+    // toggle_bit = !toggle_bit;
 
     Address_t address = 0;
     switch (action) {
