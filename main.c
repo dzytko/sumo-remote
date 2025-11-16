@@ -102,7 +102,7 @@ static error_t build_command(const Action_t action, uint8_t out_command[14]) {
     }
     uint8_t dohyo_id = read_dohyo_id();
     for (int i = 0; i < 5; ++i) {
-        out_command[ + i] = (dohyo_id & 1 << 4) != 0;
+        out_command[8 + i] = (dohyo_id & 1 << 4) != 0;
         dohyo_id <<= 1;
     }
 
