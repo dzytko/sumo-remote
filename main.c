@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <stdbool.h>
 
+
 typedef enum Address {
     ADDRESS_START = 0x07,
     ADDRESS_PROGRAM = 0x0B,
@@ -16,7 +17,51 @@ typedef enum Action {
 } Action_t;
 
 
+static void start_button_press_handler(void);
+
+static void stop_button_press_handler(void);
+
+static void program_button_press_handler(void);
+
+
+#define CPU_FREQ (24 * 1000 * 1000)
+
+
 static uint8_t toggle_bit = 1;
+
+
+__attribute__((interrupt)) void EXTI7_0_IRQHandler(void) {
+    funDigitalWrite(PD6, 1);
+    bool command_handled = false;
+    while (!funDigitalRead(PC5)) {
+        start_button_press_handler();
+        command_handled = true;
+    }
+    if (command_handled) {
+        toggle_bit = !toggle_bit;
+    }
+    command_handled = false;
+
+    while (!funDigitalRead(PC6)) {
+        stop_button_press_handler();
+        command_handled = true;
+    }
+    if (command_handled) {
+        toggle_bit = !toggle_bit;
+    }
+    command_handled = false;
+
+    while (!funDigitalRead(PC7)) {
+        program_button_press_handler();
+        command_handled = true;
+    }
+    if (command_handled) {
+        toggle_bit = !toggle_bit;
+    }
+
+    funDigitalWrite(PD6, 0);
+    EXTI->INTFR |= 1 << 5 | 1 << 6 | 1 << 7;
+}
 
 
 static void calc_presc_reload(
@@ -25,11 +70,10 @@ static void calc_presc_reload(
     uint16_t *prescaler,
     uint16_t *reload_value
 ) {
-    const uint32_t cpu_freq = 48 * 1000 * 1000;
-    *reload_value = cpu_freq / *target_frequency;
+    *reload_value = CPU_FREQ / *target_frequency;
     *prescaler = *target_resolution / (1 << 16);
 
-    *target_frequency = cpu_freq / ((*prescaler + 1) * *reload_value);
+    *target_frequency = CPU_FREQ / ((*prescaler + 1) * *reload_value);
     *target_resolution = *reload_value;
 }
 
@@ -121,25 +165,26 @@ static error_t build_command(const Action_t action, uint8_t out_command[14]) {
     return 0;
 }
 
-static void delay_us(uint16_t us) {
+
+#if CPU_FREQ == 24 * 1000 * 1000
+static void delay_us(const uint16_t us) {
     for (uint16_t i = 0; i < us; i++) {
-        for (uint32_t j = 0; j < 1; j++) {
-            asm volatile("nop");
-            asm volatile("nop");
-            asm volatile("nop");
-            asm volatile("nop");
-            asm volatile("nop");
-            asm volatile("nop");
-            asm volatile("nop");
-            asm volatile("nop");
-            asm volatile("nop");
-            asm volatile("nop");
-            asm volatile("nop");
-        }
+        asm volatile("nop");
+        asm volatile("nop");
+        asm volatile("nop");
+        asm volatile("nop");
+        asm volatile("nop");
+        asm volatile("nop");
+        asm volatile("nop");
+        asm volatile("nop");
+        asm volatile("nop");
     }
 }
+#else
+#error "Unsupported CPU frequency for delay_us"
+#endif
 
-static void delay_ms(uint16_t ms) {
+static void delay_ms(const uint16_t ms) {
     for (uint16_t i = 0; i < ms; i++) {
         delay_us(1000);
     }
@@ -248,57 +293,42 @@ static void init_gpio(void) {
     funPinMode(PC5, GPIO_CNF_IN_PUPD);
     funPinMode(PC6, GPIO_CNF_IN_PUPD);
     funPinMode(PC7, GPIO_CNF_IN_PUPD);
-    GPIOC->OUTDR |= 0xff;
+    GPIOC->OUTDR |= 0xff;  // pull-ups for ID and buttons
+
+    EXTI->INTENR |= 1 << 5 | 1 << 6 | 1 << 7;  // enable interrupt for buttons
+    PFIC->IENR[0] |= 1 << EXTI7_0_IRQn;  // enable EXIT IRQ
+}
+
+static void init_pm(void) {
+    // clock config
+    RCC->CFGR0 &= ~(RCC_SW_0 | RCC_SW_1); // HSI as system clock
+    RCC->CTLR &= ~RCC_PLLON; // disable PLL
+
+    // sleep config
+    PWR->CTLR |= PWR_CTLR_PDDS; // standby mode when entering power down
+    EXTI->EVENR |= 1 << 5 | 1 << 6 | 1 << 7; // enable exit event for buttons
+    EXTI->FTENR |= 1 << 5 | 1 << 6 | 1 << 7; // trigger on falling edge
+    // configure EXTI lines 5-7 to use port C
+    AFIO->EXTICR |=
+            AFIO_EXTICR1_EXTI0_PC << (2 * 5) |
+            AFIO_EXTICR1_EXTI0_PC << (2 * 6) |
+            AFIO_EXTICR1_EXTI0_PC << (2 * 7);
+    PFIC->SCTLR |= 1 << 2; // SLEEPDEEP
+    PFIC->SCTLR |= 1 << 1; // SLEEPONEXIT, go back to sleep after interrupt
 }
 
 int main(void) {
     SystemInit();
     funGpioInitD();
     funPinMode(PD6, GPIO_Speed_10MHz | GPIO_CNF_OUT_PP);
-    funDigitalWrite(PD6, 1);
-
-
-    // funGpioInitD();
-    // funPinMode(PD4, GPIO_Speed_10MHz | GPIO_CNF_OUT_PP);
-    //
-    // while (1) {
-    //     funDigitalWrite(PD4, 1);
-    //     delay_us(889);
-    //     funDigitalWrite(PD4, 0);
-    //     delay_us(889);
-    // }
 
     init_gpio();
     init_timer();
+    init_pm();
 
     // ReSharper disable once CppDFAEndlessLoop
     while (1) {
-        bool command_handled = false;
-        while (!funDigitalRead(PC5)) {
-            start_button_press_handler();
-            command_handled = true;
-        }
-        if (command_handled) {
-            toggle_bit = !toggle_bit;
-        }
-        command_handled = false;
-
-        while (!funDigitalRead(PC6)) {
-            stop_button_press_handler();
-            command_handled = true;
-        }
-        if (command_handled) {
-            toggle_bit = !toggle_bit;
-        }
-        command_handled = false;
-
-        while (!funDigitalRead(PC7)) {
-            program_button_press_handler();
-            command_handled = true;
-        }
-        if (command_handled) {
-            toggle_bit = !toggle_bit;
-        }
-        command_handled = false;
+        // just enter the deep sleep (standby)
+        __WFE(); // goodnight
     }
 }
