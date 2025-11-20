@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include "ch32v003fun.h"
 #include <errno.h>
+#include <stdbool.h>
 
 typedef enum Address {
     ADDRESS_START = 0x07,
@@ -162,7 +163,7 @@ static void send_command(uint8_t command[], size_t command_len, Action_t action)
             break;
     }
 
-    for (uint8_t i = 0; i < (uint8_t)encoded_len; i++) {
+    for (uint8_t i = 0; i < (uint8_t) encoded_len; i++) {
         if (bit_stream[i]) {
             TIM2->CTLR1 |= TIM_CEN;
         }
@@ -176,12 +177,13 @@ static void send_command(uint8_t command[], size_t command_len, Action_t action)
     TIM2->CTLR1 &= ~TIM_CEN;
     delay_us(5000);
 }
+
 static void init_timer(void) {
-    RCC->APB1PCENR |=  RCC_APB1Periph_TIM2;
+    RCC->APB1PCENR |= RCC_APB1Periph_TIM2;
 
     funGpioInitD();
-    funPinMode(PD3, GPIO_Speed_10MHz | GPIO_CNF_OUT_PP_AF);  // program
-    funPinMode(PD4, GPIO_Speed_10MHz | GPIO_CNF_OUT_PP_AF);  // start
+    funPinMode(PD3, GPIO_Speed_10MHz | GPIO_CNF_OUT_PP_AF); // program
+    funPinMode(PD4, GPIO_Speed_10MHz | GPIO_CNF_OUT_PP_AF); // start
 
     // Reset TIM2 to init all regs
     RCC->APB1PRSTR |= RCC_APB1Periph_TIM2;
@@ -271,14 +273,32 @@ int main(void) {
 
     // ReSharper disable once CppDFAEndlessLoop
     while (1) {
-        if (!funDigitalRead(PC5)) {
+        bool command_handled = false;
+        while (!funDigitalRead(PC5)) {
             start_button_press_handler();
+            command_handled = true;
         }
-        if (!funDigitalRead(PC6)) {
+        if (command_handled) {
+            toggle_bit = !toggle_bit;
+        }
+        command_handled = false;
+
+        while (!funDigitalRead(PC6)) {
             stop_button_press_handler();
+            command_handled = true;
         }
-        if (!funDigitalRead(PC7)) {
+        if (command_handled) {
+            toggle_bit = !toggle_bit;
+        }
+        command_handled = false;
+
+        while (!funDigitalRead(PC7)) {
             program_button_press_handler();
+            command_handled = true;
         }
+        if (command_handled) {
+            toggle_bit = !toggle_bit;
+        }
+        command_handled = false;
     }
 }
