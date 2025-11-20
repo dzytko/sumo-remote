@@ -178,6 +178,27 @@ static void send_command(uint8_t command[], size_t command_len, Action_t action)
     delay_us(5000);
 }
 
+static void start_button_press_handler(void) {
+    const Action_t action = ACTION_START;
+    uint8_t command[14];
+    build_command(action, command);
+    send_command(command, sizeof(command), action);
+}
+
+static void stop_button_press_handler(void) {
+    const Action_t action = ACTION_STOP;
+    uint8_t command[14];
+    build_command(action, command);
+    send_command(command, sizeof(command), action);
+}
+
+static void program_button_press_handler(void) {
+    const Action_t action = ACTION_PROGRAM;
+    uint8_t command[14];
+    build_command(action, command);
+    send_command(command, sizeof(command), action);
+}
+
 static void init_timer(void) {
     RCC->APB1PCENR |= RCC_APB1Periph_TIM2;
 
@@ -228,27 +249,6 @@ static void init_gpio(void) {
     funPinMode(PC6, GPIO_CNF_IN_PUPD);
     funPinMode(PC7, GPIO_CNF_IN_PUPD);
     GPIOC->OUTDR |= 0xff;
-}
-
-static void start_button_press_handler(void) {
-    const Action_t action = ACTION_START;
-    uint8_t command[14];
-    build_command(action, command);
-    send_command(command, sizeof(command), action);
-}
-
-static void stop_button_press_handler(void) {
-    const Action_t action = ACTION_STOP;
-    uint8_t command[14];
-    build_command(action, command);
-    send_command(command, sizeof(command), action);
-}
-
-static void program_button_press_handler(void) {
-    const Action_t action = ACTION_PROGRAM;
-    uint8_t command[14];
-    build_command(action, command);
-    send_command(command, sizeof(command), action);
 }
 
 int main(void) {
